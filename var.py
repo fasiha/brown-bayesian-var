@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import binom
+from scipy.stats import binom, ttest_ind
 
 # https://finance.yahoo.com/quote/%5EGSPC/history?p=%5EGSPC daily historical S&P 500 table
 df = pd.read_csv('^GSPC.csv', index_col='Date', parse_dates=True)
@@ -23,8 +23,8 @@ df['hist_var'] = df['pct_change'].rolling(window).quantile(p).shift(1)
 
 df = df.dropna()
 df['hist_break'] = df['pct_change'] < df.hist_var
-nbreaks = sum(df['hist_break'])
-nbreaks_prob = binom.pmf(nbreaks, len(df), p)
+hist_nbreaks = sum(df['hist_break'])
+hist_nbreaks_prob = binom.pmf(hist_nbreaks, len(df), p)
 
 
 def breaks_spacing(breaks: pd.Series, n: int, p: float):
@@ -36,11 +36,16 @@ def breaks_spacing(breaks: pd.Series, n: int, p: float):
     return binom.pmf(breaks_within_n_of_break, (n - 1) * nbreaks, p)
 
 
+def breaks_levels(breaks: pd.Series, var: pd.Series):
+    return ttest_ind(var[breaks], var[~breaks], equal_var=False)
+
+
 print(df)
 print(
     dict(
-        nbreaks=nbreaks,
-        nbreaks_prob=nbreaks_prob,
-        day2=breaks_spacing(df['hist_break'], 2, p),
-        day10=breaks_spacing(df['hist_break'], 10, p),
+        nbreaks=hist_nbreaks,
+        nbreaks_prob=hist_nbreaks_prob,
+        hist_day2=breaks_spacing(df['hist_break'], 2, p),
+        hist_day10=breaks_spacing(df['hist_break'], 10, p),
+        hist_levels=breaks_levels(df.hist_break, df.hist_var),
     ))
