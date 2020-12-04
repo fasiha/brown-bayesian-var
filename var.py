@@ -5,6 +5,8 @@ from scipy.stats import binom, ttest_ind, norm
 # https://finance.yahoo.com/quote/%5EGSPC/history?p=%5EGSPC daily historical S&P 500 table
 df = pd.read_csv('^GSPC.csv', index_col='Date', parse_dates=True)
 
+# df = df.iloc[:(19922 + 784 + 30)] # Try to replicate Brown's study exactly
+
 df['pct_change'] = df['Close'].pct_change()
 # N.B.! sign change seems to be needed to match Brown? But that'll fit the wrong side of the distrubtion, right?
 
@@ -43,7 +45,8 @@ def breaks_spacing(breaks: pd.Series, n: int, p: float):
 def breaks_levels(breaks: pd.Series, var: pd.Series):
     return dict(test=ttest_ind(var[breaks], var[~breaks], equal_var=False),
                 onbreak=var[breaks].mean(),
-                notbreak=var[~breaks].mean())
+                notbreak=var[~breaks].mean(),
+                all=var.mean())
 
 
 def add_b_var(df):
@@ -67,16 +70,27 @@ b_nbreaks = sum(df['b_break'])
 b_nbreaks_prob = binom.pmf(b_nbreaks, len(df), p)
 
 print(df)
-print(
-    dict(
-        nbreaks=hist_nbreaks,
-        nbreaks_prob=hist_nbreaks_prob,
-        hist_day2=breaks_spacing(df['hist_break'], 2, p),
-        hist_day10=breaks_spacing(df['hist_break'], 10, p),
-        hist_levels=breaks_levels(df.hist_break, df.hist_var),
-        b_nbreaks=b_nbreaks,
-        b_nbreaks_prob=b_nbreaks_prob,
-        b_day2=breaks_spacing(df.b_break, 2, p),
-        b_day10=breaks_spacing(df.b_break, 10, p),
-        b_levels=breaks_levels(df.b_break, df.b_var),
-    ))
+summary = dict(
+    nbreaks=hist_nbreaks,
+    nbreaks_prob=hist_nbreaks_prob,
+    hist_day2=breaks_spacing(df['hist_break'], 2, p),
+    hist_day10=breaks_spacing(df['hist_break'], 10, p),
+    hist_levels=breaks_levels(df.hist_break, df.hist_var),
+    b_nbreaks=b_nbreaks,
+    b_nbreaks_prob=b_nbreaks_prob,
+    b_day2=breaks_spacing(df.b_break, 2, p),
+    b_day10=breaks_spacing(df.b_break, 10, p),
+    b_levels=breaks_levels(df.b_break, df.b_var),
+)
+for k in summary:
+    print(f"{k}: {summary[k]}")
+
+import pylab as plt
+plt.ion()
+plt.figure()
+df.b_var.plot(marker='.')
+(-1 * df.scaled_std).plot()
+df['pct_change'].plot()
+plt.grid()
+
+df.to_json('df.json', orient='index', date_format='iso')
