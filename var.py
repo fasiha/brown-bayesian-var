@@ -66,9 +66,7 @@ def add_b_var(df):
         if b_break:
             df.iloc[i + 1, b_var_idx] = 2 * yesterday.b_var
         else:
-            df.iloc[
-                i + 1,
-                b_var_idx] = 0.94 * yesterday.b_var + 0.06 * -today.scaled_std
+            df.iloc[i + 1, b_var_idx] = 0.94 * yesterday.b_var + 0.06 * -today.scaled_std
             # Recall that `b.scaled_std` is the trailing scaled std as of this morning
             # We're not cheating by using that here: it includes only yesterday's close
     return df
@@ -104,3 +102,41 @@ df.pnl.plot()
 plt.grid()
 
 df.to_json('df.json', orient='index', date_format='iso')
+
+
+def analyze_profit_var(df):
+    profit_df = df.copy()
+    profit_df.pnl *= -1  # flip profit and loss
+    profit_df = add_b_var(profit_df)
+    profit_df['b_break'] = profit_df.pnl < profit_df.b_var
+    b_levels2 = breaks_levels(profit_df.b_break, profit_df.b_var)
+    print(f"Number of breaks: {sum(profit_df.b_break)}")
+    print(
+        f"Average VaR on break: {round(b_levels2['onbreak']*100, 4)}%; average overall VaR: {round(b_levels2['all']*100, 4)}%"
+    )
+
+
+def sliding_analysis(df, y):
+    do = pd.offsets.DateOffset(years=y)
+    tmp = df.b_var
+    v = pd.Series([tmp.loc[d - do:d].mean() for d in df.index], index=df.index)
+    tmp = df.b_var[df.b_break]
+    w = pd.Series([tmp.loc[d - do:d].mean() for d in df.index], index=df.index)
+
+    plt.figure()
+    v.plot()
+    w.plot()
+    plt.grid()
+    plt.title(f'{y} years')
+
+    tmp = df.b_break
+    x = pd.Series([tmp.loc[d - do:d].sum() for d in df.index], index=df.index)
+    d = df.index[-1]
+    window_length = len(tmp.loc[d - do:d])
+
+    plt.figure()
+    x.plot()
+    plt.title(f'{y} years ({window_length} points)')
+
+
+sliding_analysis(df, 30)
